@@ -147,6 +147,7 @@ Transport *MultiTransport::installTransport(const std::string &proto,
         return nullptr;
     }
 
+    LOG(INFO) << "===zhaoshang===: installTransport " << proto;
     transport_map_[proto] = std::shared_ptr<Transport>(transport);
     return transport;
 }

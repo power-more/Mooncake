@@ -93,6 +93,7 @@ int RdmaTransport::registerLocalMemory(void *addr, size_t length,
                                      IBV_ACCESS_REMOTE_WRITE |
                                      IBV_ACCESS_REMOTE_READ;
     for (auto &context : context_list_) {
+        LOG(INFO) << "===zhaoshang===: registerLocalMemory " << context;
         int ret = context->registerMemoryRegion(addr, length, access_rights);
         if (ret) return ret;
         buffer_desc.lkey.push_back(context->lkey(addr));
@@ -401,6 +402,7 @@ int RdmaTransport::initializeRdmaResources() {
                                      config.max_cqe, config.max_ep_per_ctx);
         if (ret) return ret;
         device_speed_list.push_back(context->activeSpeed());
+        LOG(INFO) << "===zhaoshang===: context_list_ push back " << context;
         context_list_.push_back(context);
     }
 

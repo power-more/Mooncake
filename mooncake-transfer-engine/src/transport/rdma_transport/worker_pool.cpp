@@ -413,6 +413,60 @@ int WorkerPool::doProcessContextEvents() {
         LOG(INFO) << "Worker: Context " << context_.deviceName()
                   << " is now active";
     }
+    // Check for QP_FATAL event
+    if (event.event_type == IBV_EVENT_QP_FATAL) {
+        LOG(ERROR) << "Worker: QP_FATAL event received for context "
+                   << context_.deviceName()
+                   << ". Details of the current state:";
+        const std::vector<ibv_qp*>& qpList = RdmaEndPoint.getQpList();
+        // Log information about the Queue Pair (QP)
+        for (auto &qp : qp_list_) {
+            if (qp) {
+                LOG(ERROR) << "  QP state: " << ibv_qp_state_str(qp->qp_state)
+                           << ", QP handle: " << qp
+                           << ", QP number: " << qp->qp_num;
+            }
+        }
+
+        // Log information about the Completion Queue (CQ)
+        for (auto &cq : cq_list_) {
+            LOG(ERROR) << "  CQ state: " << ibv_cq_state_str(cq.cq_state)
+                       << ", CQ handle: " << &cq
+                       << ", CQ size: " << cq.size();
+        }
+
+        // Log details about the Work Completion (WC)
+        ibv_wc wc;
+        if (ibv_poll_cq(cq_list_[0].cq, 1, &wc) > 0) {
+            LOG(ERROR) << "  Last WC status: "
+                       << ibv_wc_status_str(wc.status)
+                       << ", opcode: " << ibv_wc_opcode_str(wc.opcode)
+                       << ", byte_len: " << wc.byte_len
+                       << ", QP number: " << wc.qp_num
+                       << ", imm_data: " << wc.imm_data
+                       << ", vendor_err: " << wc.vendor_err
+                       << ", wr_id: " << wc.wr_id;
+        } else {
+            LOG(ERROR) << "  No recent work completions available.";
+        }
+
+        // Log additional information about the memory regions (MRs)
+        for (auto &mr : memory_region_list_) {
+            LOG(ERROR) << "  Memory Region - address: " << mr->addr
+                       << ", length: " << mr->length
+                       << ", lkey: " << mr->lkey
+                       << ", rkey: " << mr->rkey;
+        }
+
+        // Log context-specific information
+        LOG(ERROR) << "  Context details - device name: " << context_.deviceName()
+                   << ", port: " << (int)port_
+                   << ", lid: " << lid_
+                   << ", gid_index: " << gid_index_
+                   << ", mtu: " << active_mtu_
+                   << ", active_speed: " << active_speed_
+                   << ", gid: " << ibv_gid_to_str(&gid_);
+    }
     ibv_ack_async_event(&event);
     return 0;
 }

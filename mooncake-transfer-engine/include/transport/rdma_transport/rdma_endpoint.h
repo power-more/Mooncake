@@ -111,6 +111,16 @@ class RdmaEndPoint {
     int doSetupConnection(int qp_index, const std::string &peer_gid,
                           uint16_t peer_lid, uint32_t peer_qp_num,
                           std::string *reply_msg = nullptr);
+   public:
+    // Getter for qp_list_
+    const std::vector<ibv_qp*>& getQpList() const {
+        return qp_list_;
+    }
+
+    // Getter for context_
+    RdmaContext& getContext() const {
+        return context_;
+    }
 
    private:
     RdmaContext &context_;
