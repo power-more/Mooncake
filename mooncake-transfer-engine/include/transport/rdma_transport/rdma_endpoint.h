@@ -112,7 +112,7 @@ class RdmaEndPoint {
                           uint16_t peer_lid, uint32_t peer_qp_num,
                           std::string *reply_msg = nullptr);
 
-   private:
+   public:
     RdmaContext &context_;
     std::atomic<Status> status_;
 

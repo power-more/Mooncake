@@ -224,13 +224,33 @@ bool RdmaEndPoint::hasOutstandingSlice() const {
 int RdmaEndPoint::submitPostSend(
     std::vector<Transport::Slice *> &slice_list,
     std::vector<Transport::Slice *> &failed_slice_list) {
+    if (!connected()) {
+        LOG(ERROR) << "submitPostSend failed: endpoint not connected.";
+        failed_slice_list.insert(failed_slice_list.end(), slice_list.begin(),
+                                 slice_list.end());
+        slice_list.clear();
+        return -1;
+    }
+
     RWSpinlock::WriteGuard guard(lock_);
     int qp_index = SimpleRandom::Get().next(qp_list_.size());
     int wr_count = std::min(max_wr_depth_ - wr_depth_list_[qp_index],
                             (int)slice_list.size());
     wr_count =
         std::min(int(globalConfig().max_cqe) - *cq_outstanding_, wr_count);
-    if (wr_count <= 0) return 0;
+
+    if (wr_count <= 0) {
+        LOG(WARNING)
+            << "submitPostSend skipped: no available WR slots or CQ full.";
+        LOG(WARNING) << "max_cqe: " << globalConfig().max_cqe
+                     << ", cq_outstanding_: " << *cq_outstanding_
+                     << ", wr_depth_list_[" << qp_index
+                     << "]: " << wr_depth_list_[qp_index]
+                     << ", max_wr_depth_: " << max_wr_depth_
+                     << ", slice_list.size(): " << slice_list.size();
+        std::this_thread::sleep_for(std::chrono::seconds(3));
+        return 0;
+    }
 
     ibv_send_wr wr_list[wr_count], *bad_wr = nullptr;
     ibv_sge sge_list[wr_count];
@@ -268,14 +288,23 @@ int RdmaEndPoint::submitPostSend(
     int rc = ibv_post_send(qp_list_[qp_index], wr_list, &bad_wr);
     if (rc) {
         PLOG(ERROR) << "Failed to ibv_post_send";
+        int failed_count = 0;
         while (bad_wr) {
             int i = bad_wr - wr_list;
             failed_slice_list.push_back(slice_list[i]);
             __sync_fetch_and_sub(&wr_depth_list_[qp_index], 1);
             __sync_fetch_and_sub(cq_outstanding_, 1);
             bad_wr = bad_wr->next;
+            failed_count++;
         }
+        LOG(ERROR) << "===zhaoshang===submitPostSend: " << failed_count
+                   << " slices failed to post.";
     }
+
+    LOG(INFO) << "===zhaoshang===submitPostSend: posted " << wr_count
+              << " slices on QP[" << qp_index << "], "
+              << "remaining slices: " << (slice_list.size() - wr_count);
+
     slice_list.erase(slice_list.begin(), slice_list.begin() + wr_count);
     return 0;
 }

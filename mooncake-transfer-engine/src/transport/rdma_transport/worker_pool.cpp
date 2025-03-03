@@ -396,14 +396,58 @@ void WorkerPool::transferWorker(int thread_id) {
 int WorkerPool::doProcessContextEvents() {
     ibv_async_event event;
     if (ibv_get_async_event(context_.context(), &event) < 0) return ERR_CONTEXT;
-    LOG(WARNING) << "Worker: Received context async event "
-                 << ibv_event_type_str(event.event_type) << " for context "
-                 << context_.deviceName();
+
+    LOG(ERROR) << "===zhaoshang=== RDMA ASYNC EVENT DETECTED ========";
+    auto cq = event.element.cq;
+    LOG(ERROR) << "Related CQ: " << cq;
+    LOG(ERROR) << "CQ " << cq
+           << ", handle: " << cq->handle
+           << ", cqe: " << cq->cqe
+           << ", comp_events_completed: " << cq->comp_events_completed
+           << ", async_events_completed: " << cq->async_events_completed
+           << ", channel fd: "
+           << (cq->channel ? cq->channel->fd : -1);
+    struct ibv_qp_attr attr;
+    struct ibv_qp_init_attr init_attr;
+    auto qp = event.element.qp;
+    if (ibv_query_qp(event.element.qp, &attr, IBV_QP_STATE | IBV_QP_CUR_STATE |
+                        IBV_QP_CAP | IBV_QP_QKEY, &init_attr) == 0) {
+    LOG(ERROR) << "QP " << qp
+               << ", qp_num: " << qp->qp_num
+               << ", state: " << attr.qp_state
+               << ", cur_qp_state: " << attr.cur_qp_state
+               << ", sq_psn: " << attr.sq_psn
+               << ", rq_psn: " << attr.rq_psn
+               << ", dest_qp_num: " << attr.dest_qp_num
+               << ", max_send_wr: " << init_attr.cap.max_send_wr
+               << ", max_recv_wr: " << init_attr.cap.max_recv_wr
+               << ", max_send_sge: " << init_attr.cap.max_send_sge
+               << ", max_recv_sge: " << init_attr.cap.max_recv_sge
+               << ", qkey: " << attr.qkey;
+} else {
+    PLOG(ERROR) << "Failed to query QP";
+}
+    LOG(ERROR) << "Related WQ: " << event.element.wq;
+    LOG(ERROR) << "Event type: " << ibv_event_type_str(event.event_type);
+    LOG(ERROR) << "Context device: " << context_.deviceName();
+    std::size_t cqCount = context_.cqCount();
+    LOG(INFO) << "CQ list size: " << cqCount;
+    for (size_t i = 0; i < cqCount; ++i) {
+    LOG(INFO) << "  CQ[" << i << "] native ptr: " << context_.cq_list_[i].native;
+}
+    LOG(ERROR) << "Port: " << (int)context_.portNum()
+               << ", LID: " << context_.lid()
+               << ", GID: " << context_.gid();
+    LOG(ERROR) << "Active endpoints: "
+               << (context_.endpoint_store_ ? "YES" : "NO");
+    LOG(ERROR) << "Current active state: " << context_.active();
+
     if (event.event_type == IBV_EVENT_DEVICE_FATAL ||
         event.event_type == IBV_EVENT_CQ_ERR ||
         event.event_type == IBV_EVENT_WQ_FATAL ||
         event.event_type == IBV_EVENT_PORT_ERR ||
         event.event_type == IBV_EVENT_LID_CHANGE) {
+        LOG(ERROR) << "Critical event detected, deactivating context.";
         context_.set_active(false);
         context_.disconnectAllEndpoints();
         LOG(INFO) << "Worker: Context " << context_.deviceName()

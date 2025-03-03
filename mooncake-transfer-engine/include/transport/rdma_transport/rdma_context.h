@@ -140,7 +140,7 @@ class RdmaContext {
    public:
     int submitPostSend(const std::vector<Transport::Slice *> &slice_list);
 
-   private:
+   public:
     const std::string device_name_;
     RdmaTransport &engine_;
 

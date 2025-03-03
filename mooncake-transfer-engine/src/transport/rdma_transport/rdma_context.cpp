@@ -502,6 +502,13 @@ int RdmaContext::joinNonblockingPollList(int event_fd, int data_fd) {
 
 int RdmaContext::poll(int num_entries, ibv_wc *wc, int cq_index) {
     int nr_poll = ibv_poll_cq(cq_list_[cq_index].native, num_entries, wc);
+    for (int i = 0; i < nr_poll; ++i) {
+        if (wc[i].status != IBV_WC_SUCCESS) {
+            LOG(ERROR) << "===zhaoshang=== CQ poll found failed WC, status: "
+                       << ibv_wc_status_str(wc[i].status)
+                       << ", wr_id: " << wc[i].wr_id;
+        }
+    }
     if (nr_poll < 0) {
         LOG(ERROR) << "Failed to poll CQ " << cq_index << " of device "
                    << device_name_;

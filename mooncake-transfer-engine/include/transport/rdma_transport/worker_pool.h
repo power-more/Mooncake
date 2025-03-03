@@ -43,7 +43,7 @@ class WorkerPool {
 
     int doProcessContextEvents();
 
-   private:
+   public:
     RdmaContext &context_;
     const int numa_socket_id_;
 
